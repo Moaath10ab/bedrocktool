@@ -87,6 +87,7 @@ func (s *Session) Now() time.Time {
 // AddCommand adds a command to the command handler
 func (s *Session) AddCommand(exec func([]string) bool, cmd protocol.Command) {
 	cmd.AliasesOffset = 0xffffffff
+	cmd.PermissionLevel = "ANY"
 	s.commands[cmd.Name] = ingameCommand{exec, cmd}
 }
 

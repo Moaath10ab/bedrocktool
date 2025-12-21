@@ -14,6 +14,14 @@ import (
 	"github.com/sandertv/gophertunnel/minecraft/realms"
 )
 
+type ErrNotFound struct {
+	Name string
+}
+
+func (e *ErrNotFound) Error() string {
+	return fmt.Sprintf("%s not found", e.Name)
+}
+
 type ConnectInfo struct {
 	Value   string
 	Account *auth.Account
@@ -46,7 +54,7 @@ func (c *ConnectInfo) getGathering(ctx context.Context, name string) (*discovery
 			return gathering, nil
 		}
 	}
-	return nil, fmt.Errorf("gathering %s not found", name)
+	return nil, &ErrNotFound{Name: name}
 }
 
 func (c *ConnectInfo) getExperience(ctx context.Context, name string) (*discovery.FeaturedServer, error) {
@@ -76,7 +84,7 @@ func (c *ConnectInfo) getExperience(ctx context.Context, name string) (*discover
 			return c.experience, nil
 		}
 	}
-	return nil, nil
+	return nil, &ErrNotFound{Name: name}
 }
 
 func (c *ConnectInfo) getRealm(ctx context.Context, name string) (*realms.Realm, error) {
@@ -92,7 +100,7 @@ func (c *ConnectInfo) getRealm(ctx context.Context, name string) (*realms.Realm,
 			return &realm, nil
 		}
 	}
-	return nil, fmt.Errorf("realm %s not found", name)
+	return nil, &ErrNotFound{Name: name}
 }
 
 func (c *ConnectInfo) Name(ctx context.Context) (string, error) {
@@ -129,13 +137,14 @@ func (c *ConnectInfo) Name(ctx context.Context) (string, error) {
 	}
 	if info.experience != "" {
 		exp, err := c.getExperience(ctx, info.experience)
-		if err != nil {
-			return "", err
-		}
-		if exp == nil {
+		switch {
+		case errors.Is(err, &ErrNotFound{}):
 			return info.experience, nil
+		case err != nil:
+			return "", err
+		default:
+			return exp.Name, nil
 		}
-		return exp.Name, nil
 	}
 	return "invalid", nil
 }
@@ -171,13 +180,16 @@ func (c *ConnectInfo) Address(ctx context.Context) (string, error) {
 	}
 
 	if info.experience != "" {
-		experience, err := c.getExperience(ctx, info.experience)
+		expId, err := uuid.Parse(info.experience)
 		if err != nil {
-			return "", err
-		}
-		expId, err := uuid.Parse(experience.ExperienceId)
-		if err != nil {
-			return "", err
+			experience, err := c.getExperience(ctx, info.experience)
+			if err != nil {
+				return "", err
+			}
+			expId, err = uuid.Parse(experience.ExperienceId)
+			if err != nil {
+				return "", err
+			}
 		}
 		gatheringsService, err := c.Account.Gatherings(ctx)
 		if err != nil {

@@ -379,18 +379,16 @@ func (r *ResourcePackHandler) downloadResourcePack(pk *packet.ResourcePackDataIn
 	h := sha256.New()
 	w := io.MultiWriter(f, h)
 
-	chunksRequested := 0
 	dataWritten := 0
-	// request first
-	err = r.Server.WritePacket(&packet.ResourcePackChunkRequest{
-		UUID:       pk.UUID,
-		ChunkIndex: 0,
-	})
-	if err != nil {
-		return err
-	}
-	chunksRequested++
-	for {
+	for chunkIndex := range chunkCount {
+		err = r.Server.WritePacket(&packet.ResourcePackChunkRequest{
+			UUID:       pk.UUID,
+			ChunkIndex: chunkIndex,
+		})
+		if err != nil {
+			return err
+		}
+
 		var frag *packet.ResourcePackChunkData
 		var ok bool
 		select {
@@ -423,28 +421,7 @@ func (r *ResourcePackHandler) downloadResourcePack(pk *packet.ResourcePackDataIn
 		if lastData {
 			break
 		}
-
-		if chunksRequested < int(chunkCount) {
-			err = r.Server.WritePacket(&packet.ResourcePackChunkRequest{
-				UUID:       pk.UUID,
-				ChunkIndex: uint32(chunksRequested),
-			})
-			if err != nil {
-				return err
-			}
-			chunksRequested++
-		}
 	}
-
-	/*
-		sf, ok := r.Server.(interface {
-			Stats() *raknet.RakNetStatistics
-		})
-		if ok {
-			stats := sf.Stats()
-			utils.DumpStruct(os.Stdout, stats.Total)
-		}
-	*/
 
 	if dataWritten != int(pack.size) {
 		return fmt.Errorf("incorrect resource pack size: expected %v, but got %v", pack.size, dataWritten)
@@ -541,29 +518,12 @@ func (r *ResourcePackHandler) OnResourcePackStack(pk *packet.ResourcePackStack) 
 	// We currently don't apply resource packs in any way, so instead we just check if all resource packs in
 	// the stacks are also downloaded.
 	for _, pack := range pk.TexturePacks {
-		for i, behaviourPack := range pk.BehaviourPacks {
-			if pack.UUID == behaviourPack.UUID {
-				// We had a behaviour pack with the same UUID as the texture pack, so we drop the texture
-				// pack and log it.
-				r.log.Warnf("dropping behaviour pack with UUID %v due to a texture pack with the same UUID", pack.UUID)
-				pk.BehaviourPacks = append(pk.BehaviourPacks[:i], pk.BehaviourPacks[i+1:]...)
-			}
-		}
 		id, err := uuid.Parse(pack.UUID)
 		if err != nil {
 			continue
 		}
 		if !r.hasPack(id, pack.Version, false) {
 			return fmt.Errorf("texture pack {uuid=%v, version=%v} not downloaded", pack.UUID, pack.Version)
-		}
-	}
-	for _, pack := range pk.BehaviourPacks {
-		id, err := uuid.Parse(pack.UUID)
-		if err != nil {
-			continue
-		}
-		if !r.hasPack(id, pack.Version, true) {
-			return fmt.Errorf("behaviour pack {uuid=%v, version=%v} not downloaded", pack.UUID, pack.Version)
 		}
 	}
 

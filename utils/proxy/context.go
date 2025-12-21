@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/bedrock-tool/bedrocktool/ui/messages"
-	"github.com/bedrock-tool/bedrocktool/utils"
 	"github.com/bedrock-tool/bedrocktool/utils/auth"
 	"github.com/bedrock-tool/bedrocktool/utils/auth/xbox"
 	"github.com/bedrock-tool/bedrocktool/utils/connectinfo"
@@ -81,11 +80,6 @@ func (p *Context) connect(connectInfo *connectinfo.ConnectInfo, withClient bool)
 }
 
 func (p *Context) Run(ctx context.Context, withClient bool) (err error) {
-	err = utils.Netisolation()
-	if err != nil {
-		logrus.Warnf("Failed to Enable Loopback for Minecraft: %s", err)
-	}
-
 	defer func() {
 		messages.SendEvent(&messages.EventSetUIState{
 			State: messages.UIStateFinished,
